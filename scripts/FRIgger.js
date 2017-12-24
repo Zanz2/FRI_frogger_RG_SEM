@@ -28,6 +28,8 @@ var izpitVertexNormalBuffer;
 var izpitVertexTextureCoordBuffer;
 var izpitVertexIndexBuffer;
 
+//collisions
+var colisionWorld = Array();
 
 /*
 class Izpit{
@@ -352,83 +354,26 @@ function handleLoadedWorld(data, part) {
 
   document.getElementById("loadingtext").textContent = "";
 }
-/*
-function handleLoadedWorldEnd(data) {
+
+//handleLoadedColisions
+function handleLoadedCollisionWorld(data){
+  console.log("cw");
   var lines = data.split("\n");
-  var vertexCount = 0;
   var vertexPositions = [];
-  var vertexTextureCoords = [];
   for (var i in lines) {
     var vals = lines[i].replace(/^\s+/, "").split(/\s+/);
-    if (vals.length == 5 && vals[0] != "//") {
-		//console.log("ae");
-		
+    if (vals.length != 1 && vals[0] != "//") {
       // It is a line describing a vertex; get X, Y and Z first
       vertexPositions.push(parseFloat(vals[0]));
       vertexPositions.push(parseFloat(vals[1]));
       vertexPositions.push(parseFloat(vals[2]));
 
-      // And then the texture coords
-      vertexTextureCoords.push(parseFloat(vals[3]));
-      vertexTextureCoords.push(parseFloat(vals[4]));
-
-      vertexCount += 1;
+      colisionWorld.push(vertexPositions);
+      vertexPositions = [];
     }
   }
-
-  worldEndVertexPositionBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, worldEndVertexPositionBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexPositions), gl.STATIC_DRAW);
-  worldEndVertexPositionBuffer.itemSize = 3;
-  worldEndVertexPositionBuffer.numItems = vertexCount;
-
-  worldEndVertexTextureCoordBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, worldEndVertexTextureCoordBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexTextureCoords), gl.STATIC_DRAW);
-  worldEndVertexTextureCoordBuffer.itemSize = 2;
-  worldEndVertexTextureCoordBuffer.numItems = vertexCount;
-
-  document.getElementById("loadingtext").textContent = "";
 }
 
-function handleLoadedWorldStreha(data) {
-  var lines = data.split("\n");
-  var vertexCount = 0;
-  var vertexPositions = [];
-  var vertexTextureCoords = [];
-  for (var i in lines) {
-    var vals = lines[i].replace(/^\s+/, "").split(/\s+/);
-    if (vals.length == 5 && vals[0] != "//") {
-		console.log("ae");
-		
-      // It is a line describing a vertex; get X, Y and Z first
-      vertexPositions.push(parseFloat(vals[0]));
-      vertexPositions.push(parseFloat(vals[1]));
-      vertexPositions.push(parseFloat(vals[2]));
-
-      // And then the texture coords
-      vertexTextureCoords.push(parseFloat(vals[3]));
-      vertexTextureCoords.push(parseFloat(vals[4]));
-
-      vertexCount += 1;
-    }
-  }
-
-  worldStrehaVertexPositionBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, worldStrehaVertexPositionBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexPositions), gl.STATIC_DRAW);
-  worldStrehaVertexPositionBuffer.itemSize = 3;
-  worldStrehaVertexPositionBuffer.numItems = vertexCount;
-
-  worldStrehaVertexTextureCoordBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, worldStrehaVertexTextureCoordBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexTextureCoords), gl.STATIC_DRAW);
-  worldStrehaVertexTextureCoordBuffer.itemSize = 2;
-  worldStrehaVertexTextureCoordBuffer.numItems = vertexCount;
-
-  document.getElementById("loadingtext").textContent = "";
-}
-*/
 //
 // loadWorld
 //
@@ -450,34 +395,6 @@ function loadWorld() {
       requests[i].send();
     })(i);
   }
-  /*
-  var request = new XMLHttpRequest();
-  request.open("GET", "./assets/world.txt");
-  request.onreadystatechange = function () {
-    if (request.readyState == 4) {
-      handleLoadedWorld(request.responseText);
-    }
-  }
-  request.send();
-  
-  var request2 = new XMLHttpRequest();
-  request2.open("GET", "./assets/worldEnd.txt");
-  request2.onreadystatechange = function () {
-    if (request2.readyState == 4) {
-      handleLoadedWorldEnd(request2.responseText);
-    }
-  }
-  request2.send();
-  
-  var request3 = new XMLHttpRequest();
-  request3.open("GET", "./assets/worldStreha.txt");
-  request3.onreadystatechange = function () {
-    if (request3.readyState == 4) {
-      handleLoadedWorldStreha(request3.responseText);
-    }
-  }
-  request3.send();
-  */
 }
 
 //nalozi ludeka
@@ -491,6 +408,25 @@ function loadLudek() {
     }
     request.send();
 }
+
+//nalozi colision boxe
+//svet
+function loadWorldCollisionBox() {
+  requests = new XMLHttpRequest();
+
+  requests.open("GET", "./assets/collisionWorld.txt");
+  requests.onreadystatechange = function () {
+    if (requests.readyState == 4 && requests.status == 200) {
+      handleLoadedCollisionWorld(requests.responseText);
+    }
+  }
+  requests.send();
+}
+
+
+
+
+//osebek
 
 //
 // drawScene
@@ -585,11 +521,27 @@ function animate() {
     var elapsed = timeNow - lastTime;
 
     if (speed != 0) {
+      //debugger;
+      var oldXPosition = xPosition;
+      var oldYPosition = yPosition;
+      var oldZPosition = zPosition;
+      var oldJoggingAngle = joggingAngle;
+
       xPosition -= Math.sin(degToRad(yaw)) * speed * elapsed;
       zPosition -= Math.cos(degToRad(yaw)) * speed * elapsed;
 
       joggingAngle += elapsed * 0.6; // 0.6 "fiddle factor" - makes it feel more realistic :-)
       yPosition = Math.sin(degToRad(joggingAngle)) / 20 + 0.4
+
+      //console.log(!checkColision([[xPosition, yPosition, zPosition]], colisionWorld));
+
+      if(!checkColision([[xPosition, yPosition, zPosition]], colisionWorld)){
+        xPosition = oldXPosition;
+        yPosition = oldYPosition;
+        zPosition = oldZPosition;
+        joggingAngle = oldJoggingAngle;
+      }
+
     }
 
     yaw += yawRate * elapsed;
@@ -656,6 +608,41 @@ function handleKeys() {
   }
 }
 
+function checkColision(colider, box){
+var dotikanje = true;
+
+  colider.forEach(function(tocka) {
+    dotikanje = true;
+
+    box.forEach(function(t1) {
+      box.forEach(function(t2) {
+        if(t1!=t2){
+          for(var dimenzija = 0; dimenzija<3; dimenzija++){
+            //debugger;
+            var razmik = Math.abs(t1[dimenzija] - t2[dimenzija]);
+
+            if (t1[dimenzija] != t2[dimenzija]){
+              if (t1[dimenzija] + razmik < tocka[dimenzija])
+                dotikanje = false;
+
+              if (t1[dimenzija] - razmik > tocka[dimenzija])
+                dotikanje = false;
+            }
+          }
+        }
+      }, false);
+    }, false);
+
+    if (dotikanje)
+      return true;
+  }, false);
+
+  if(dotikanje)
+    return true;
+
+  return false;
+}
+
 //
 // start
 //
@@ -683,7 +670,10 @@ function start() {
 
     // Initialise world objects
     loadWorld();
-	loadLudek();
+    loadLudek();
+    
+    // Initialise colision boxes
+    loadWorldCollisionBox();
 
     // Bind keyboard handling functions to document handlers
     document.onkeydown = handleKeyDown;
