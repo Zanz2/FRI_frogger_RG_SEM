@@ -28,6 +28,9 @@ var izpitVertexNormalBuffer;
 var izpitVertexTextureCoordBuffer;
 var izpitVertexIndexBuffer;
 
+var numOfIzpits = 5;
+var izpitMoveMatrix = Array();
+
 //collisions
 var colisionWorld = Array();
 
@@ -426,7 +429,19 @@ function loadWorldCollisionBox() {
 
 
 
-//osebek
+//initialise izpite
+function initIzpit(){
+  for(var i=0; i<3; i++){
+    izpitMoveMatrix[i] = Array();
+    for(var j=0; j<numOfIzpits; j++){
+      if(i!=1)
+        izpitMoveMatrix[i].push([0, 0, -20+(j*(40/numOfIzpits))]);
+      else
+        izpitMoveMatrix[i].push([0, 0, 20-(j*(40/numOfIzpits))]);
+    }
+  }
+  //debugger;
+}
 
 //
 // drawScene
@@ -485,8 +500,46 @@ function drawScene() {
  
   mvPushMatrix();
 
-  mat4.translate(mvMatrix, [11, -0.9, 19]);
-  mat4.rotate(mvMatrix, degToRad(90), [0, 1, 0]);
+  mat4.translate(mvMatrix, [12, -0.9, 0]);  
+
+  for(var i=0; i<3; i++){
+    if(i==1)
+      mat4.translate(mvMatrix, [-4, 0, 0]);
+    if(i==2)
+      mat4.translate(mvMatrix, [-4, 0, 0]);
+
+    //debugger;
+    
+    izpitMoveMatrix[i].forEach(function(move) {
+      mvPushMatrix();
+
+      mat4.translate(mvMatrix, move);
+      mat4.rotate(mvMatrix, degToRad(90), [0, 1, 0]);
+
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, worldTextures[3]);
+      gl.uniform1i(shaderProgram.samplerUniform, 0);
+      
+      // Set the texture coordinates attribute for the vertices.
+      gl.bindBuffer(gl.ARRAY_BUFFER, ludekVertexTextureCoordBuffer);
+      gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, ludekVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    
+      // Draw the world by binding the array buffer to the world's vertices
+      // array, setting attributes, and pushing it to GL.
+      gl.bindBuffer(gl.ARRAY_BUFFER, ludekVertexPositionBuffer);
+      gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, ludekVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+      
+      // Draw the ludek.
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ludekVertexIndexBuffer);
+      setMatrixUniforms();
+      gl.drawElements(gl.TRIANGLES, ludekVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+
+      mvPopMatrix();
+    });
+
+    //mvPopMatrix();
+  }
+  /*
   //ludek
   // Activate textures
   gl.activeTexture(gl.TEXTURE0);
@@ -506,7 +559,7 @@ function drawScene() {
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ludekVertexIndexBuffer);
   setMatrixUniforms();
   gl.drawElements(gl.TRIANGLES, ludekVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
-  
+  */
   mvPopMatrix();
 }
 
@@ -520,6 +573,9 @@ function animate() {
   if (lastTime != 0) {
     var elapsed = timeNow - lastTime;
 
+    //debugger;
+    animateIzpit(elapsed);
+    //console.log(izpitMoveMatrix[1][2]);
     if (speed != 0) {
       //debugger;
       var oldXPosition = xPosition;
@@ -552,7 +608,25 @@ function animate() {
 }
 
 function animateIzpit(elapsed){
-
+  for(var i=0; i<3; i++){
+    for(var j=0; j<numOfIzpits; j++){
+      if(i==0){
+        izpitMoveMatrix[i][j][2] += 0.008 * elapsed;
+        if(izpitMoveMatrix[i][j][2] > 20)
+          izpitMoveMatrix[i][j][2] = -20;   
+      }
+      else if(i==1){
+        izpitMoveMatrix[i][j][2] -= 0.007 * elapsed;
+        if(izpitMoveMatrix[i][j][2] < -20)
+          izpitMoveMatrix[i][j][2] = 20;
+      }
+      else if(i==2){
+        izpitMoveMatrix[i][j][2] += 0.009 * elapsed;
+        if(izpitMoveMatrix[i][j][2] > 20)
+          izpitMoveMatrix[i][j][2] = -20;
+      }
+    }
+  }
 }
 //
 // Keyboard handling helper functions
@@ -667,6 +741,9 @@ function start() {
     
     // Next, load and set up the textures we'll be using.
     initTextures();
+
+    //inicializiraj izpite
+    initIzpit();
 
     // Initialise world objects
     loadWorld();
