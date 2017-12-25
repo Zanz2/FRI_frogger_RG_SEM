@@ -3,6 +3,9 @@ var canvas;
 var gl;
 var shaderProgram;
 
+//zivljenje
+var alive = true;
+
 // Buffers
 var worldVertexPositionBuffer = Array();
 var worldVertexTextureCoordBuffer = Array();
@@ -33,6 +36,10 @@ var izpitMoveMatrix = Array();
 
 //collisions
 var colisionWorld = Array();
+
+var colisionIzpit = Array();
+var colisionIzpits = Array();
+var colisionIzpitsCurrnet = Array();
 
 /*
 class Izpit{
@@ -377,6 +384,24 @@ function handleLoadedCollisionWorld(data){
   }
 }
 
+function handleLoadedCollisionIzpit(data){
+  console.log("ci");
+  var lines = data.split("\n");
+  var vertexPositions = [];
+  for (var i in lines) {
+    var vals = lines[i].replace(/^\s+/, "").split(/\s+/);
+    if (vals.length != 1 && vals[0] != "//") {
+      // It is a line describing a vertex; get X, Y and Z first
+      vertexPositions.push(parseFloat(vals[0]));
+      vertexPositions.push(parseFloat(vals[1]));
+      vertexPositions.push(parseFloat(vals[2]));
+
+      colisionIzpit.push(vertexPositions);
+      vertexPositions = [];
+    }
+  }
+}
+
 //
 // loadWorld
 //
@@ -404,6 +429,7 @@ function loadWorld() {
 function loadLudek() {
     var request = new XMLHttpRequest();
     request.open("GET", "./assets/fri_izpit.json");
+    //request.open("GET", "./javascript_fili/js_model_svincnik_pickup.json");
     request.onreadystatechange = function () {
         if (request.readyState == 4) {
             handleLoadedLudek(JSON.parse(request.responseText));
@@ -414,9 +440,8 @@ function loadLudek() {
 
 //nalozi colision boxe
 //svet
-function loadWorldCollisionBox() {
+function loadCollisionsBoxes() {
   requests = new XMLHttpRequest();
-
   requests.open("GET", "./assets/collisionWorld.txt");
   requests.onreadystatechange = function () {
     if (requests.readyState == 4 && requests.status == 200) {
@@ -424,6 +449,15 @@ function loadWorldCollisionBox() {
     }
   }
   requests.send();
+
+  requests2 = new XMLHttpRequest();
+  requests2.open("GET", "./assets/collisionIzpit.txt");
+  requests2.onreadystatechange = function () {
+    if (requests2.readyState == 4 && requests.status == 200) {
+      handleLoadedCollisionIzpit(requests2.responseText);
+    }
+  }
+  requests2.send();
 }
 
 
@@ -440,7 +474,52 @@ function initIzpit(){
         izpitMoveMatrix[i].push([0, 0, 20-(j*(40/numOfIzpits))]);
     }
   }
-  //debugger;
+}
+
+function initIzpitCollisionBox(){
+  for(var i=0; i<3; i++){
+    colisionIzpits[i] = Array();
+    colisionIzpitsCurrnet[i] = Array();
+
+    for(var j=0; j<numOfIzpits; j++){
+
+      var newArray1 = Array();
+      var newArray2 = Array();
+
+      for (var x = 0; x < colisionIzpit.length; x++){
+        newArray1.push(colisionIzpit[x].slice());
+        newArray2.push(colisionIzpit[x].slice());
+      }
+      
+      colisionIzpits[i].push(newArray1.slice());
+      colisionIzpitsCurrnet[i].push(newArray2.slice());
+      //debugger;
+      for(var koor = 0; koor<colisionIzpit.length; koor++){
+        if(i==0){
+          colisionIzpits[i][j][koor][0] += 12;
+          colisionIzpitsCurrnet[i][j][koor][0] += 12;
+        }
+        else if(i==1){
+          colisionIzpits[i][j][koor][0] += 8;
+          colisionIzpitsCurrnet[i][j][koor][0] += 8;
+        }
+        else{
+          colisionIzpits[i][j][koor][0] += 4;
+          colisionIzpitsCurrnet[i][j][koor][0] += 4;
+        }
+      }
+    }
+  }
+  /*
+  debugger;
+  console.log(colisionIzpits[0][0][0][0]);
+  console.log(colisionIzpitsCurrnet[0][0][0][0]);
+
+  colisionIzpitsCurrnet[0][0][0][0]=100;
+
+  console.log(colisionIzpits[0][0][0][0]);
+  console.log(colisionIzpitsCurrnet[0][0][0][0]);
+  debugger;*/
 }
 
 //
@@ -473,7 +552,7 @@ function drawScene() {
 
   // Now move the drawing position a bit to where we want to start
   // drawing the world.
-  
+
   mat4.rotate(mvMatrix, degToRad(-pitch), [1, 0, 0]);
   mat4.rotate(mvMatrix, degToRad(-yaw), [0, 1, 0]);
   mat4.translate(mvMatrix, [-xPosition, -yPosition, -zPosition]);
@@ -501,6 +580,8 @@ function drawScene() {
   mvPushMatrix();
 
   mat4.translate(mvMatrix, [12, -0.9, 0]);  
+  //mat4.translate(mvMatrix, [-4, -0.9, 0])
+  mvPushMatrix();
 
   for(var i=0; i<3; i++){
     if(i==1)
@@ -510,9 +591,13 @@ function drawScene() {
 
     //debugger;
     
+    //colisionIzpitsCurrnet[i].forEach(function(move) {
     izpitMoveMatrix[i].forEach(function(move) {
-      mvPushMatrix();
-
+     
+      //console.log(move[0]);
+      //for(var a = 0;a<8; a++){
+        mvPushMatrix();
+        //debugger;
       mat4.translate(mvMatrix, move);
       mat4.rotate(mvMatrix, degToRad(90), [0, 1, 0]);
 
@@ -535,6 +620,7 @@ function drawScene() {
       gl.drawElements(gl.TRIANGLES, ludekVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
 
       mvPopMatrix();
+      //}
     });
 
     //mvPopMatrix();
@@ -568,6 +654,8 @@ function drawScene() {
 //
 // Called every time before redeawing the screen.
 //
+var test = true;
+
 function animate() {
   var timeNow = new Date().getTime();
   if (lastTime != 0) {
@@ -575,6 +663,12 @@ function animate() {
 
     //debugger;
     animateIzpit(elapsed);
+
+    if(test){
+      izpitMoveColiisionBox();
+      //test = false;
+    }
+
     //console.log(izpitMoveMatrix[1][2]);
     if (speed != 0) {
       //debugger;
@@ -598,6 +692,21 @@ function animate() {
         joggingAngle = oldJoggingAngle;
       }
 
+    }
+
+    for(var i=0; i<3; i++){
+      for(var j=0; j<numOfIzpits; j++){
+        var zabije = checkColision([[xPosition, yPosition, zPosition]], colisionIzpitsCurrnet[i][j]);
+        
+
+        if(zabije){
+          console.log("colision " + zabije);
+          alive = false;
+
+          //for(;;){}
+          //test=false;
+        }
+      }
     }
 
     yaw += yawRate * elapsed;
@@ -627,6 +736,28 @@ function animateIzpit(elapsed){
       }
     }
   }
+}
+
+function izpitMoveColiisionBox(){
+  
+  for(var i=0; i<3; i++){
+    for(var j=0; j<numOfIzpits; j++){
+      for(var koor = 0; koor<colisionIzpits[i][j].length; koor++){
+        //var a = colisionIzpits[i][j][koor][2];
+        
+        //debugger;
+        //console.log(colisionIzpits[i][j][koor][2]);
+        //console.log(izpitMoveMatrix[i][j][2]);
+
+        colisionIzpitsCurrnet[i][j][koor][2] = colisionIzpits[i][j][koor][2] + izpitMoveMatrix[i][j][2];
+
+        //console.log(colisionIzpits[i][j][koor][2]);
+        //console.log(izpitMoveMatrix[i][j][2]);
+        //debugger;
+      }
+    }
+  }
+  //debugger;
 }
 //
 // Keyboard handling helper functions
@@ -663,20 +794,20 @@ function handleKeys() {
 
   if (currentlyPressedKeys[37] || currentlyPressedKeys[65]) {
     // Left cursor key or A
-    yawRate = 0.3;
+    yawRate = 0.15;
   } else if (currentlyPressedKeys[39] || currentlyPressedKeys[68]) {
     // Right cursor key or D
-    yawRate = -0.3;
+    yawRate = -0.15;
   } else {
     yawRate = 0;
   }
 
   if (currentlyPressedKeys[38] || currentlyPressedKeys[87]) {
     // Up cursor key or W
-    speed = 0.023;
+    speed = 0.015;
   } else if (currentlyPressedKeys[40] || currentlyPressedKeys[83]) {
     // Down cursor key
-    speed = -0.023;
+    speed = -0.015;
   } else {
     speed = 0;
   }
@@ -742,6 +873,24 @@ function start() {
     // Next, load and set up the textures we'll be using.
     initTextures();
 
+
+
+    // Initialise colision boxes
+
+    loadCollisionsBoxes();
+
+    function checkFlag() {
+      if(colisionIzpit.length == 0) {
+         window.setTimeout(checkFlag, 100); /* this checks the flag every 100 milliseconds*/
+      }
+      else{
+        initIzpitCollisionBox();
+      }
+    }
+    checkFlag();
+
+    
+
     //inicializiraj izpite
     initIzpit();
 
@@ -749,8 +898,7 @@ function start() {
     loadWorld();
     loadLudek();
     
-    // Initialise colision boxes
-    loadWorldCollisionBox();
+    
 
     // Bind keyboard handling functions to document handlers
     document.onkeydown = handleKeyDown;
@@ -758,6 +906,12 @@ function start() {
     
     // Set up to draw the scene periodically.
     setInterval(function() {
+      if(!alive){
+        //NAPIŠI NEK END GAME AL NEKI
+        //PRIGAZ GUMBA ZA OD ZAČETKA
+        return;
+      }
+
       if (texturesLoaded == texturesToLoad) { // only draw scene and animate when textures are loaded.
         requestAnimationFrame(animate);
         handleKeys();
