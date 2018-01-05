@@ -15,6 +15,13 @@ var wordlDataPaths = ["world.txt", "worldEnd.txt", "worldStreha.txt", "cesta.txt
 //world textures
 var worldTexturesPaths = ["tla.png", "friTexture.png", "streha.png", "cesta.png", "voda.png"];
 
+//other textures
+var otherTexturesPaths = ["izpit_test_texture.png"];
+
+//datumi lokacija
+var datumsToLoad = 6;
+var datumsPaths = ["js_model_datum1.json", "js_model_datum2.json", "js_model_datum3.json", "js_model_datum4.json", "js_model_datum5.json", "js_model_datum6.json"];
+
 /*
 var worldVertexPositionBuffer = null;
 var worldVertexTextureCoordBuffer = null;
@@ -34,12 +41,36 @@ var izpitVertexIndexBuffer;
 var numOfIzpits = 5;
 var izpitMoveMatrix = Array();
 
+// datumi
+var datumsVertexPositionBuffer = Array();
+var datumsVertexNormalBuffer = Array();
+var datumsVertexTextureCoordBuffer = Array();
+var datumsVertexIndexBuffer = Array();
+
+var numOfDatums = 6;
+var numOfDatumsPerLine = 5;
+
+//datumi pozicije
+var datumsMoveMatrix = Array();
+
 //collisions
 var colisionWorld = Array();
 
 var colisionIzpit = Array();
 var colisionIzpits = Array();
 var colisionIzpitsCurrnet = Array();
+
+var collisionWater = [[-5, 20],
+                      [-5, -20],
+                      [-15, 20],
+                      [-15, -20]]  //(x, z)
+
+var collisionsDatums = Array();
+
+var colisionsDatum = [[0, 0],
+                      [0, 6.5],
+                      [1.5, 0],
+                      [1.5, 6.5]]
 
 /*
 class Izpit{
@@ -58,10 +89,15 @@ var pMatrix = mat4.create();
 
 // Variables for storing textures
 var worldTextures = new Array();
+var otherTextures = new Array();
 
 // Variable that stores  loading state of textures.
-var texturesLoaded = 0;
-var texturesToLoad = 5;
+var worldTexturesLoaded = 0;
+var worldTexturesToLoad = 5;
+
+var otherTexturesLoaded = 0;
+var otherTexturesToLoad = 1;
+
 
 // Keyboard handling helper variable for reading the status of keys
 var currentlyPressedKeys = {};
@@ -72,9 +108,16 @@ var pitchRate = 0;
 var yaw = 90;
 var yawRate = 0;
 var xPosition = 19;
-var yPosition = 8.4;
+var yPosition = 2.4;
 var zPosition = 0;
 var speed = 0;
+
+//jumping
+var jumpStrength = 1;
+var gravity = 5;
+var toJump = false;
+var jumpPosition = 0;
+var jumpCurrentHeight = 0;
 
 // Used to make us "jog" up and down as we move forward.
 var joggingAngle = 0;
@@ -233,14 +276,14 @@ function setMatrixUniforms() {
 }
 
 //
-// initTextures
+// initWorldTextures
 //
 // Initialize the textures we'll be using, then initiate a load of
 // the texture images. The handleTextureLoaded() callback will finish
 // the job; it gets called each time a texture finishes loading.
 //
-function initTextures() {
-  for(var i = 0; i<texturesToLoad; i++){
+function initWorldTextures() {
+  for(var i = 0; i<worldTexturesToLoad; i++){
     (function (i){
       worldTextures[i] = gl.createTexture();
       worldTextures[i].image = new Image();
@@ -250,21 +293,19 @@ function initTextures() {
       worldTextures[i].image.src = "./assets/" + worldTexturesPaths[i];
     })(i);
   }
-  
-  /*
-  goraTexture = gl.createTexture();
-  goraTexture.image = new Image();
-  goraTexture.image.onload = function () {
-    handleTextureLoaded(goraTexture)
+}
+
+function initOtherTextures() {
+  for(var i = 0; i<otherTexturesToLoad; i++){
+    (function (i){
+      otherTextures[i] = gl.createTexture();
+      otherTextures[i].image = new Image();
+      otherTextures[i].image.onload = function () {
+        handleTextureLoaded(otherTextures[i])
+      }
+      otherTextures[i].image.src = "./teksture/" + otherTexturesPaths[i];
+    })(i);
   }
-  goraTexture.image.src = "./assets/friTexture.png";
-  
-  strehaTexture = gl.createTexture();
-  strehaTexture.image = new Image();
-  strehaTexture.image.onload = function () {
-    handleTextureLoaded(strehaTexture)
-  }
-  strehaTexture.image.src = "./assets/streha.png";*/
 }
 
 function handleTextureLoaded(texture) {
@@ -281,42 +322,75 @@ function handleTextureLoaded(texture) {
   gl.bindTexture(gl.TEXTURE_2D, null);
 
   // when texture loading is finished we can draw scene.
-  texturesLoaded += 1;
+  worldTexturesLoaded += 1;
 }
 
-//nalaganje ludeka
-function handleLoadedLudek(teapotData) {
+//nalaganje izpita
+function handleLoadedIzpit(izpitData) {
     // Pass the normals into WebGL
-    ludekVertexNormalBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, ludekVertexNormalBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.data.attributes.normal.array), gl.STATIC_DRAW);
-    ludekVertexNormalBuffer.itemSize = 3;
-    ludekVertexNormalBuffer.numItems = teapotData.data.attributes.normal.array.length / 3;
+    izpitVertexNormalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, izpitVertexNormalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(izpitData.data.attributes.normal.array), gl.STATIC_DRAW);
+    izpitVertexNormalBuffer.itemSize = 3;
+    izpitVertexNormalBuffer.numItems = izpitData.data.attributes.normal.array.length / 3;
 
     // Pass the texture coordinates into WebGL
-    ludekVertexTextureCoordBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, ludekVertexTextureCoordBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.data.attributes.uv.array), gl.STATIC_DRAW);
-    ludekVertexTextureCoordBuffer.itemSize = 2;
-    ludekVertexTextureCoordBuffer.numItems = teapotData.data.attributes.uv.array.length / 2;
+    izpitVertexTextureCoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, izpitVertexTextureCoordBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(izpitData.data.attributes.uv.array), gl.STATIC_DRAW);
+    izpitVertexTextureCoordBuffer.itemSize = 2;
+    izpitVertexTextureCoordBuffer.numItems = izpitData.data.attributes.uv.array.length / 2;
 
     // Pass the vertex positions into WebGL
-    ludekVertexPositionBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, ludekVertexPositionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.data.attributes.position.array), gl.STATIC_DRAW);
-    ludekVertexPositionBuffer.itemSize = 3;
-    ludekVertexPositionBuffer.numItems = teapotData.data.attributes.position.array.length / 3;
+    izpitVertexPositionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, izpitVertexPositionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(izpitData.data.attributes.position.array), gl.STATIC_DRAW);
+    izpitVertexPositionBuffer.itemSize = 3;
+    izpitVertexPositionBuffer.numItems = izpitData.data.attributes.position.array.length / 3;
 
     // Pass the indices into WebGL
-    ludekVertexIndexBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ludekVertexIndexBuffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(teapotData.data.index.array), gl.STATIC_DRAW);
-    ludekVertexIndexBuffer.itemSize = 1;
-    ludekVertexIndexBuffer.numItems = teapotData.data.index.array.length;
+    izpitVertexIndexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, izpitVertexIndexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(izpitData.data.index.array), gl.STATIC_DRAW);
+    izpitVertexIndexBuffer.itemSize = 1;
+    izpitVertexIndexBuffer.numItems = izpitData.data.index.array.length;
 
     document.getElementById("loadingtext").textContent = "";
 }
 
+//nalaganje datuma
+function handleLoadedDatum(datumData, i) {
+  //debugger;
+  // Pass the normals into WebGL
+  datumsVertexNormalBuffer[i] = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, datumsVertexNormalBuffer[i]);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(datumData.data.attributes.normal.array), gl.STATIC_DRAW);
+  datumsVertexNormalBuffer[i].itemSize = 3;
+  datumsVertexNormalBuffer[i].numItems = datumData.data.attributes.normal.array.length / 3;
+
+  // Pass the texture coordinates into WebGL
+  datumsVertexTextureCoordBuffer[i] = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, datumsVertexTextureCoordBuffer[i]);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(datumData.data.attributes.uv.array), gl.STATIC_DRAW);
+  datumsVertexTextureCoordBuffer[i].itemSize = 2;
+  datumsVertexTextureCoordBuffer[i].numItems = datumData.data.attributes.uv.array.length / 2;
+
+  // Pass the vertex positions into WebGL
+  datumsVertexPositionBuffer[i] = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, datumsVertexPositionBuffer[i]);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(datumData.data.attributes.position.array), gl.STATIC_DRAW);
+  datumsVertexPositionBuffer[i].itemSize = 3;
+  datumsVertexPositionBuffer[i].numItems = datumData.data.attributes.position.array.length / 3;
+
+  // Pass the indices into WebGL
+  datumsVertexIndexBuffer[i] = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, datumsVertexIndexBuffer[i]);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(datumData.data.index.array), gl.STATIC_DRAW);
+  datumsVertexIndexBuffer[i].itemSize = 1;
+  datumsVertexIndexBuffer[i].numItems = datumData.data.index.array.length;
+
+  document.getElementById("loadingtext").textContent = "";
+}
 
 //
 // handleLoadedWorld
@@ -425,17 +499,37 @@ function loadWorld() {
   }
 }
 
-//nalozi ludeka
-function loadLudek() {
+//nalozi izpit
+function loadIzpit() {
     var request = new XMLHttpRequest();
     request.open("GET", "./assets/fri_izpit.json");
     //request.open("GET", "./javascript_fili/js_model_svincnik_pickup.json");
     request.onreadystatechange = function () {
         if (request.readyState == 4) {
-            handleLoadedLudek(JSON.parse(request.responseText));
+            handleLoadedIzpit(JSON.parse(request.responseText));
         }
     }
     request.send();
+}
+
+//nalozi datume
+function loadDatume() {
+  var requests = Array();
+  //debugger;
+  for(var i=0; i<datumsToLoad; i++){
+    (function (i){
+      requests[i] = new XMLHttpRequest();
+      requests[i].open("GET", "./javascript_fili/" + datumsPaths[i]);
+      //debugger;
+      requests[i].onreadystatechange = function () {
+        if (requests[i].readyState == 4) {
+          handleLoadedDatum(JSON.parse(requests[i].responseText), i);
+        }
+      }
+    
+      requests[i].send();
+    })(i);
+  }
 }
 
 //nalozi colision boxe
@@ -510,16 +604,39 @@ function initIzpitCollisionBox(){
       }
     }
   }
-  /*
-  debugger;
-  console.log(colisionIzpits[0][0][0][0]);
-  console.log(colisionIzpitsCurrnet[0][0][0][0]);
+}
 
-  colisionIzpitsCurrnet[0][0][0][0]=100;
+//initialise izpite
+function initDatums(){
+  for(var i=0; i<2; i++){
+    datumsMoveMatrix[i] = Array();
+    for(var j=0; j<numOfDatumsPerLine; j++){
+      if(i==0)
+        datumsMoveMatrix[i].push([0, 0, -20+(j*(40/numOfDatumsPerLine))]);
+      else
+        datumsMoveMatrix[i].push([0, 0, 20-(j*(40/numOfDatumsPerLine))]);
+    }
+  }
 
-  console.log(colisionIzpits[0][0][0][0]);
-  console.log(colisionIzpitsCurrnet[0][0][0][0]);
-  debugger;*/
+  initDatumsCollisionBoxes();
+}
+
+function initDatumsCollisionBoxes(){
+  for(var i=0; i<2; i++){
+    collisionsDatums[i] = Array();
+    for(var j=0; j<numOfDatumsPerLine; j++){
+      if(i==0)
+        collisionsDatums[i].push([[-12+colisionsDatum[0][0], datumsMoveMatrix[i][j][2]-colisionsDatum[0][1]],
+                                  [-12+colisionsDatum[1][0], datumsMoveMatrix[i][j][2]-colisionsDatum[1][1]],
+                                  [-12+colisionsDatum[2][0], datumsMoveMatrix[i][j][2]-colisionsDatum[2][1]],
+                                  [-12+colisionsDatum[3][0], datumsMoveMatrix[i][j][2]-colisionsDatum[3][1]]]);
+      else
+      collisionsDatums[i].push([[-8+colisionsDatum[0][0], datumsMoveMatrix[i][j][2]-colisionsDatum[0][1]],
+                                [-8+colisionsDatum[1][0], datumsMoveMatrix[i][j][2]-colisionsDatum[1][1]],
+                                [-8+colisionsDatum[2][0], datumsMoveMatrix[i][j][2]-colisionsDatum[2][1]],
+                                [-8+colisionsDatum[3][0], datumsMoveMatrix[i][j][2]-colisionsDatum[3][1]]]);
+    }
+  }
 }
 
 //
@@ -533,17 +650,21 @@ function drawScene() {
   // Clear the canvas before we start drawing on it.
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+  //console.log(datumsVertexPositionBuffer.length);
+
   // If buffers are empty we stop loading the application.
-  if (worldVertexTextureCoordBuffer.length != texturesToLoad || worldVertexPositionBuffer.length != worldItemsToLoad ||
-  ludekVertexPositionBuffer == null || ludekVertexNormalBuffer == null || ludekVertexTextureCoordBuffer == null || ludekVertexIndexBuffer == null)
+  if (worldVertexTextureCoordBuffer.length != worldTexturesToLoad || worldVertexPositionBuffer.length != worldItemsToLoad ||
+  izpitVertexPositionBuffer == null || izpitVertexNormalBuffer == null || izpitVertexTextureCoordBuffer == null || izpitVertexIndexBuffer == null ||
+  datumsVertexPositionBuffer.length == 0 || datumsVertexNormalBuffer.length == 0 || datumsVertexTextureCoordBuffer.length == 0 || datumsVertexIndexBuffer.length == 0)
   {
     return;
   }
-  
+  //debugger;
   // Establish the perspective with which we want to view the
   // scene. Our field of view is 45 degrees, with a width/height
   // ratio of 640:480, and we only want to see objects between 0.1 units
   // and 100 units away from the camera.
+
   mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, pMatrix);
 
   // Set the drawing position to the "identity" point, which is
@@ -555,8 +676,10 @@ function drawScene() {
 
   mat4.rotate(mvMatrix, degToRad(-pitch), [1, 0, 0]);
   mat4.rotate(mvMatrix, degToRad(-yaw), [0, 1, 0]);
-  mat4.translate(mvMatrix, [-xPosition, -yPosition, -zPosition]);
+  mat4.translate(mvMatrix, [-xPosition, -(yPosition + jumpCurrentHeight), -zPosition]);
   
+  console.log("x:" + xPosition + " y:" + yPosition + " z:" + zPosition);
+
   //draw world
   for(var i = 0; i<worldItemsToLoad; i++){
     gl.activeTexture(gl.TEXTURE0);
@@ -602,29 +725,78 @@ function drawScene() {
       mat4.rotate(mvMatrix, degToRad(90), [0, 1, 0]);
 
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, worldTextures[3]);
+      gl.bindTexture(gl.TEXTURE_2D, otherTextures[0]);
       gl.uniform1i(shaderProgram.samplerUniform, 0);
       
       // Set the texture coordinates attribute for the vertices.
-      gl.bindBuffer(gl.ARRAY_BUFFER, ludekVertexTextureCoordBuffer);
-      gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, ludekVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, izpitVertexTextureCoordBuffer);
+      gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, izpitVertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
     
       // Draw the world by binding the array buffer to the world's vertices
       // array, setting attributes, and pushing it to GL.
-      gl.bindBuffer(gl.ARRAY_BUFFER, ludekVertexPositionBuffer);
-      gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, ludekVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, izpitVertexPositionBuffer);
+      gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, izpitVertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
       
-      // Draw the ludek.
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ludekVertexIndexBuffer);
+      // Draw the izpit.
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, izpitVertexIndexBuffer);
       setMatrixUniforms();
-      gl.drawElements(gl.TRIANGLES, ludekVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+      gl.drawElements(gl.TRIANGLES, izpitVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
 
       mvPopMatrix();
       //}
     });
-
-    //mvPopMatrix();
   }
+  
+
+    mvPopMatrix();
+  
+    mat4.translate(mvMatrix, [-22, -2, 0]);  
+    //mat4.translate(mvMatrix, [4, -0.9, 0])
+    
+    mvPushMatrix();
+
+    for(var i=0; i<2; i++){
+      if(i==1)
+        mat4.translate(mvMatrix, [4, 0, 0]);
+        
+        datumsMoveMatrix[i].forEach(function(move) {
+        
+        //console.log(move[0]);
+        //for(var a = 0;a<8; a++){
+        mvPushMatrix();
+        //debugger;
+        mat4.translate(mvMatrix, move);
+        mat4.rotate(mvMatrix, degToRad(90), [0, 0, 1]);
+
+        //mvPushMatrix();
+        //mat4.scale(mvMatrix, [1, 1, 1]);
+
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, worldTextures[3]);
+        gl.uniform1i(shaderProgram.samplerUniform, 0);
+        //debugger;
+        // Set the texture coordinates attribute for the vertices.
+        gl.bindBuffer(gl.ARRAY_BUFFER, datumsVertexTextureCoordBuffer[0]);
+        gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, datumsVertexTextureCoordBuffer[0].itemSize, gl.FLOAT, false, 0, 0);
+      
+        // Draw the world by binding the array buffer to the world's vertices
+        // array, setting attributes, and pushing it to GL.
+        gl.bindBuffer(gl.ARRAY_BUFFER, datumsVertexPositionBuffer[0]);
+        gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, datumsVertexPositionBuffer[0].itemSize, gl.FLOAT, false, 0, 0);
+        
+        // Draw the izpit.
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, datumsVertexIndexBuffer[0]);
+        setMatrixUniforms();
+        gl.drawElements(gl.TRIANGLES, datumsVertexIndexBuffer[0].numItems, gl.UNSIGNED_SHORT, 0);
+
+        //mvPopMatrix();
+        mvPopMatrix();
+        //}
+      });
+    }
+    
+  //}
   /*
   //ludek
   // Activate textures
@@ -669,7 +841,19 @@ function animate() {
       //test = false;
     }
 
-    //console.log(izpitMoveMatrix[1][2]);
+    //console.log(jumpPosition + " " + (yPosition-2.4));
+    if(toJump){
+      jumpPosition += elapsed * 0.4;
+      if(jumpPosition>180){
+        toJump=false;
+        jumpPosition=0;
+      }
+      else{
+      //yPosition = yPosition + Math.sin(jumpPosition/gravity) * jumpStrength + 2.4;
+      jumpCurrentHeight = Math.sin(degToRad(jumpPosition))*2;
+      }
+    }
+
     if (speed != 0) {
       //debugger;
       var oldXPosition = xPosition;
@@ -681,11 +865,16 @@ function animate() {
       zPosition -= Math.cos(degToRad(yaw)) * speed * elapsed;
 
       joggingAngle += elapsed * 0.6; // 0.6 "fiddle factor" - makes it feel more realistic :-)
-      yPosition = Math.sin(degToRad(joggingAngle)) / 20 + 0.4
+      
+      //if(!toJump)
+      //  jumpCurrentHeight = Math.sin(degToRad(joggingAngle)) / 20 + 2.4
 
       //console.log(!checkColision([[xPosition, yPosition, zPosition]], colisionWorld));
+      
+      if(xPosition < -19)
+        alive=false;
 
-      if(!checkColision([[xPosition, yPosition, zPosition]], colisionWorld)){
+      if(!checkColision([[xPosition, yPosition, zPosition]], colisionWorld, 3)){
         xPosition = oldXPosition;
         yPosition = oldYPosition;
         zPosition = oldZPosition;
@@ -696,16 +885,33 @@ function animate() {
 
     for(var i=0; i<3; i++){
       for(var j=0; j<numOfIzpits; j++){
-        var zabije = checkColision([[xPosition, yPosition, zPosition]], colisionIzpitsCurrnet[i][j]);
+        var zabije = checkColision([[xPosition, yPosition-2, zPosition]], colisionIzpitsCurrnet[i][j], 3);
         
-
         if(zabije){
           console.log("colision " + zabije);
           alive = false;
-
-          //for(;;){}
-          //test=false;
         }
+      }
+
+      var zabije = checkColision([[xPosition, zPosition]], collisionWater, 2);
+
+      if(zabije){
+        //console.log("colision voda " + zabije);
+
+        var naVarnem = false;
+
+        for(var i=0; i<2; i++){
+          for(var j=0; j<numOfDatumsPerLine; j++){
+             if(checkColision([[xPosition, zPosition]], collisionsDatums[i][j], 2))
+              naVarnem = true;
+            
+            //console.log("colision datum " + zabije);
+          }
+        }
+
+        if(!naVarnem && !toJump)
+          alive = false;
+        
       }
     }
 
@@ -739,21 +945,10 @@ function animateIzpit(elapsed){
 }
 
 function izpitMoveColiisionBox(){
-  
   for(var i=0; i<3; i++){
     for(var j=0; j<numOfIzpits; j++){
       for(var koor = 0; koor<colisionIzpits[i][j].length; koor++){
-        //var a = colisionIzpits[i][j][koor][2];
-        
-        //debugger;
-        //console.log(colisionIzpits[i][j][koor][2]);
-        //console.log(izpitMoveMatrix[i][j][2]);
-
         colisionIzpitsCurrnet[i][j][koor][2] = colisionIzpits[i][j][koor][2] + izpitMoveMatrix[i][j][2];
-
-        //console.log(colisionIzpits[i][j][koor][2]);
-        //console.log(izpitMoveMatrix[i][j][2]);
-        //debugger;
       }
     }
   }
@@ -804,16 +999,21 @@ function handleKeys() {
 
   if (currentlyPressedKeys[38] || currentlyPressedKeys[87]) {
     // Up cursor key or W
-    speed = 0.015;
+    speed = 0.01;
   } else if (currentlyPressedKeys[40] || currentlyPressedKeys[83]) {
     // Down cursor key
-    speed = -0.015;
+    speed = -0.01;
   } else {
     speed = 0;
   }
+
+  if (currentlyPressedKeys[32]) {
+    // spacebar
+    toJump = true;
+  }
 }
 
-function checkColision(colider, box){
+function checkColision(colider, box, dimension){
 var dotikanje = true;
 
   colider.forEach(function(tocka) {
@@ -822,7 +1022,7 @@ var dotikanje = true;
     box.forEach(function(t1) {
       box.forEach(function(t2) {
         if(t1!=t2){
-          for(var dimenzija = 0; dimenzija<3; dimenzija++){
+          for(var dimenzija = 0; dimenzija<dimension; dimenzija++){
             //debugger;
             var razmik = Math.abs(t1[dimenzija] - t2[dimenzija]);
 
@@ -855,8 +1055,18 @@ var dotikanje = true;
 // Figuratively, that is. There's nothing moving in this demo.
 //
 function start() {
-  canvas = document.getElementById("glcanvas");
+  /*debugger;
+  alive = true;
+  xPosition = 19;
+  yPosition = 2.4;
+  zPosition = 0;
+  */
+  menu = document.getElementById("menu");
+  menu.innerHTML = "";
 
+  canvas = document.getElementById("glcanvas");
+  canvas.width = document.body.clientWidth-50; //document.width is obsolete
+  canvas.height = document.body.clientHeight-100; //document.height is obsolete
   gl = initGL(canvas);      // Initialize the GL context
 
   // Only continue if WebGL is available and working
@@ -871,9 +1081,8 @@ function start() {
     initShaders();
     
     // Next, load and set up the textures we'll be using.
-    initTextures();
-
-
+    initWorldTextures();
+    initOtherTextures();
 
     // Initialise colision boxes
 
@@ -893,10 +1102,12 @@ function start() {
 
     //inicializiraj izpite
     initIzpit();
+    initDatums();
 
     // Initialise world objects
     loadWorld();
-    loadLudek();
+    loadIzpit();
+    loadDatume();
     
     
 
@@ -905,18 +1116,30 @@ function start() {
     document.onkeyup = handleKeyUp;
     
     // Set up to draw the scene periodically.
-    setInterval(function() {
+    var interval = setInterval(function() {
       if(!alive){
-        //NAPIŠI NEK END GAME AL NEKI
-        //PRIGAZ GUMBA ZA OD ZAČETKA
-        return;
+
+        menu = document.getElementById("menu");
+        menu.innerHTML = '<button onclick="window.location.reload()">POSKUSI ZNOVAJ</button>';
+
+        clearInterval(interval);
       }
 
-      if (texturesLoaded == texturesToLoad) { // only draw scene and animate when textures are loaded.
+      if (worldTexturesLoaded == worldTexturesToLoad + otherTexturesToLoad) { // only draw scene and animate when textures are loaded.
         requestAnimationFrame(animate);
         handleKeys();
         drawScene();
       }
     }, 15);
   }
+}
+
+function menu(){
+  menu = document.getElementById("menu");
+  //canvas = document.getElementById("glcanvas");
+
+  menu.innerHTML = '<button onclick="start()">START</button>';
+
+  //ctx=canvas.getContext("2d");
+  //context.clearRect(0, 0, canvas.width, canvas.height);
 }
